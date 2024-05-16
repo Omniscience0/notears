@@ -3,6 +3,43 @@ import scipy.linalg as slin
 import scipy.optimize as sopt
 from scipy.special import expit as sigmoid
 
+def calculate_edges(W, theta):
+    """ A new penalty with edges
+
+    Args:
+        W(np.ndarray): [d, d] estimated DAG
+        theta(float): the number of edge increase if w[i,j] > theta
+
+    Returns:
+        edges(int): the edge number of graph
+
+    """
+    edges = 0
+    rows, cols = W.shape
+    for i in range(rows):
+        for j in range(cols):
+            if abs(W[i, j]) > theta:
+                edges += 1
+    return edges
+
+
+def l0_approximate(w_ij, theta):
+    """
+    Approximation of edge number to make it differentiable
+    """
+    return 2 * theta * w_ij/((w_ij**2 + theta)**2)
+
+def calaulate_G_W(W, theta):
+    """
+    Calculate its gradient
+    """
+    G_W = np.zeros((W.shape[0], W.shape[0]))
+    rows, cols = W.shape
+    for i in range(rows):
+        for j in range(cols):
+            G_W[i, j] = l0_approximate(W[i, j], theta)
+
+    return G_W
 
 def notears_linear(X, lambda1, loss_type, max_iter=100, h_tol=1e-8, rho_max=1e+16, w_threshold=0.3):
     """Solve min_W L(W; X) + lambda1 ‖W‖_1 s.t. h(W) = 0 using augmented Lagrangian.
@@ -26,6 +63,10 @@ def notears_linear(X, lambda1, loss_type, max_iter=100, h_tol=1e-8, rho_max=1e+1
             R = X - M
             loss = 0.5 / X.shape[0] * (R ** 2).sum()
             G_loss = - 1.0 / X.shape[0] * X.T @ R
+        elif loss_type == 'l2+': # with edge penalty
+            R = X - M
+            loss = 0.5 / X.shape[0] * (R ** 2).sum() + 0.5 * calculate_edges(W, theta=0.1)
+            G_loss = - 1.0 / X.shape[0] * X.T @ R + 0.5 * calaulate_G_W(W, theta=0.1)
         elif loss_type == 'logistic':
             loss = 1.0 / X.shape[0] * (np.logaddexp(0, M) - X * M).sum()
             G_loss = 1.0 / X.shape[0] * X.T @ (sigmoid(M) - X)
@@ -103,5 +144,11 @@ if __name__ == '__main__':
     np.savetxt('W_est.csv', W_est, delimiter=',')
     acc = utils.count_accuracy(B_true, W_est != 0)
     print(acc)
-    print("Hello world!")
+
+    # A new test for edges penalty
+    W_est1 = notears_linear(X, lambda1=0.1, loss_type='l2+')
+    assert utils.is_dag(W_est1)
+    np.savetxt('W_est1.csv', W_est1, delimiter=',')
+    acc1 = utils.count_accuracy(B_true, W_est1 != 0)
+    print(acc1)
 
