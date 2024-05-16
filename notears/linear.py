@@ -2,6 +2,7 @@ import numpy as np
 import scipy.linalg as slin
 import scipy.optimize as sopt
 from scipy.special import expit as sigmoid
+import pandas as pd
 
 def calculate_edges(W, theta):
     """ A new penalty with edges
@@ -131,6 +132,7 @@ if __name__ == '__main__':
     from notears import utils
     utils.set_random_seed(1)
 
+    """
     n, d, s0, graph_type, sem_type = 100, 20, 20, 'ER', 'gauss'
     B_true = utils.simulate_dag(d, s0, graph_type)
     W_true = utils.simulate_parameter(B_true)
@@ -138,6 +140,27 @@ if __name__ == '__main__':
 
     X = utils.simulate_linear_sem(W_true, n, sem_type)
     np.savetxt('X.csv', X, delimiter=',')
+    """
+
+    # Real data Testing Process
+    data = pd.read_csv("cyto_full_data.csv")
+    n_nodes = data.shape[1]
+    labels = data.columns.to_list()
+
+    # target csv into weighted adjacent matrix
+    df = pd.read_csv("cyto_full_target.csv")
+
+    adjacency_matrix = pd.DataFrame(0, index=labels, columns=labels)
+
+    for _, row in df.iterrows():
+        cause, effect = row["Cause"], row["Effect"]
+        adjacency_matrix.loc[cause, effect] = 1
+
+    B_true = adjacency_matrix.values
+    np.savetxt('W_est.csv', B_true, delimiter=',')
+    X = data.values
+    # X = np.array(data.values, dtype=np.float128)
+
 
     W_est = notears_linear(X, lambda1=0.1, loss_type='l2')
     assert utils.is_dag(W_est)
